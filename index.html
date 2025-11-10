@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>eBay Price Scanner</title>
+  <script src="https://unpkg.com/@zxing/library@latest"></script>
+  <style>
+    body { font-family: sans-serif; text-align: center; background: #111; color: #eee; }
+    video { width: 100%; max-width: 400px; border-radius: 8px; margin-top: 1rem; }
+    #output { margin-top: 1rem; background: #222; padding: 1rem; border-radius: 8px; }
+    img { width: 120px; border-radius: 6px; margin-top: .5rem; }
+  </style>
+</head>
+<body>
+  <h2>📦 eBay Price Scanner</h2>
+  <video id="preview"></video>
+  <div id="output">Scan an item…</div>
+
+  <script>
+    const codeReader = new ZXing.BrowserMultiFormatReader();
+    const output = document.getElementById('output');
+    const video = document.getElementById('preview');
+
+    async function startScanner() {
+      try {
+        const devices = await codeReader.listVideoInputDevices();
+        const camId = devices[0]?.deviceId;
+        await codeReader.decodeFromVideoDevice(camId, video, (result, err) => {
+          if (result) {
+            const code = result.text;
+            if (!window.last || window.last !== code) {
+              window.last = code;
+              lookupEbay(code);
+            }
+          }
+        });
+      } catch (e) {
+        output.innerText = "Camera access failed: " + e;
+      }
+    }
+
+    async function lookupEbay(gtin) {
+      output.innerText = "Searching eBay for " + gtin + "…";
+
+      // This uses the public eBay search page (not ideal but works without API key)
+      const proxy = "https://api.allorigins.win/get?url=";
+      const url = encodeURIComponent(`https://www.ebay.com/sch/i.html?_nkw=${gtin}&_sop=13`);
+      const res = await fetch(proxy + url);
+      const html = await res.json();
+      const doc = new DOMParser().parseFromString(html.contents, "text/html");
+      const item = doc.querySelector(".s-item");
+      if (!item) {
+        output.innerText = "No matches found.";
+        return;
+      }
+      const title = item.querySelector(".s-item__title")?.textContent ?? "Untitled";
+      const img = item.querySelector(".s-item__image-img")?.src ?? "";
+      const prices = [...doc.querySelectorAll(".s-item__price")].slice(0, 3).map(p => p.textContent.trim());
+      output.innerHTML = `
+        <strong>${title}</strong><br>
+        <img src="${img}" alt="item"><br>
+        <small>Last 3 sold prices:</small><br>${prices.join("<br>")}
+      `;
+    }
+
+    startScanner();
+  </script>
+</body>
+</html>
