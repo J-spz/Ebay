@@ -63,6 +63,16 @@ function startQuagga() {
   });
 }
 
+// Helper function to escape HTML and prevent XSS
+function escapeHtml(unsafe) {
+  return unsafe
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 async function lookupEbay(gtin) {
   const proxy = "https://api.allorigins.win/get?url=";
   const url = encodeURIComponent(`https://www.ebay.com/sch/i.html?_nkw=${gtin}&_sop=13`);
@@ -72,19 +82,21 @@ async function lookupEbay(gtin) {
     const doc = new DOMParser().parseFromString(html.contents, "text/html");
     const item = doc.querySelector(".s-item");
     if (!item) {
-      output.innerHTML = `No eBay results for ${gtin}`;
+      output.textContent = `No eBay results for ${gtin}`;
       return;
     }
     const title = item.querySelector(".s-item__title")?.textContent ?? "Untitled";
     const img = item.querySelector(".s-item__image-img")?.src ?? "";
     const prices = [...doc.querySelectorAll(".s-item__price")].slice(0,3).map(p=>p.textContent.trim());
+
+    // Safely construct HTML with escaped content
     output.innerHTML = `
-      <strong>${title}</strong><br>
-      <img src="${img}" alt="item"><br>
-      <small>Last 3 sold prices:</small><br>${prices.join("<br>")}
+      <strong>${escapeHtml(title)}</strong><br>
+      <img src="${escapeHtml(img)}" alt="item"><br>
+      <small>Last 3 sold prices:</small><br>${prices.map(p => escapeHtml(p)).join("<br>")}
     `;
   } catch (e) {
-    output.innerText = "Lookup error: " + e;
+    output.textContent = "Lookup error: " + e;
   }
 }
 </script>
